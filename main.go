@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math"
+	"math/big"
 	"math/rand"
 	"strconv"
 	"time"
@@ -13,21 +13,22 @@ import (
 	"golang.org/x/crypto/scrypt"
 )
 
-//DefaultMantissa2 - default mantissa for system
-const DefaultMantissa2 = 0x0FFFF0
+//DefaultMantissa - default mantissa for system
+const DefaultMantissa = 0xFFFF00
 
 //MantissaMax - maximum mantissa value
 const MantissaMax = 0xFFFFFF
 
 //DefaultExponent - default exponent for system
-const DefaultExponent = 29
+const DefaultExponent = 57
 
-var currentMantissa float64 = DefaultMantissa2
-var currentExponent = DefaultExponent
+var currentMantissa int64 = DefaultMantissa
+var currentExponent int64 = DefaultExponent
 
 //MaxTarget - max target for hash comparision
-const MaxTarget string = "0ffff00000000000000000000000000000000000000000000000000000000000" //0x1dffff00
+//const MaxTarget string = "0ffff00000000000000000000000000000000000000000000000000000000000" //0x1dffff00
 //Target = mantissa * 2^(8 * (exponent – 3)) (exponent - 1d)
+//0ffff00000000000000000000000000000000000000000000000000000000000
 //0ffff00000000000000000000000000000000000000000000000000000000000
 
 //DefaultDifficulty Starting calculation difficulty
@@ -49,6 +50,17 @@ type Transaction struct {
 }
 
 func main() {
+	var bigI = new(big.Int)
+	/*bigI := big.NewInt(DefaultMantissa)
+	bigI.Exp(big.NewInt(16), big.NewInt(DefaultExponent), nil)
+	bigI.Mul(bigI, big.NewInt(DefaultMantissa))*/
+	//fmt.Printf("1 Big int: %x\n", GetTarget(DefaultMantissa, DefaultExponent))
+	/*result, success := bigI.SetString(MaxTarget, 16)
+	if !success {
+		fmt.Println("Not successed")
+	}
+	fmt.Printf("Big int  : %x\n", result)*/
+
 	rand.Seed(time.Now().UnixNano())
 	var hashStr string
 	var transJSON string
@@ -57,6 +69,9 @@ func main() {
 	maxUint64 := ^uint64(0)
 
 	processingStart := time.Now()
+	currentTarget := GetTarget(currentMantissa, currentExponent)
+	fmt.Printf("current target: %x\n", currentTarget)
+
 	for i := 0; i < 10; i++ {
 		start := time.Now()
 		trans := &Transaction{Sign: RandStringRunes(16)}
@@ -83,8 +98,12 @@ func main() {
 			//fmt.Println(countZeros(hashStr))
 			//zeros := countZeros(hashStr)
 			transJSON = string(jsonStr)
+			hashI, success := bigI.SetString(hashStr, 16)
+			if !success {
+				fmt.Println("Not successed")
+			}
 
-			if hashStr < MaxTarget {
+			if hashI.Cmp(currentTarget) == -1 {
 				fmt.Println("by max target")
 				break
 			}
@@ -111,11 +130,40 @@ func main() {
 	fmt.Printf("new difficulty: %f\n", newDifficulty)
 
 	//currentMantissa = DefaultMantissa / newDifficulty
-	SetExponent(DefaultMantissa2 / newDifficulty)
-	fmt.Printf("new target: %x\n", uint64(currentMantissa))
+	SetTarget(newDifficulty)
+	fmt.Printf("new target: %x\n", currentMantissa)
 	fmt.Printf("new exponent: %x\n", currentExponent)
 
-	fmt.Printf("Target string: %s\n", TargetString())
+	//fmt.Printf("Target string: %s\n", TargetString())
+}
+
+//GetTarget - calculate target number based on difficulty bits
+func GetTarget(mantissa int64, exponent int64) *big.Int {
+	var target = new(big.Int)
+	//target := big.NewInt(DefaultMantissa)
+	target.Exp(big.NewInt(16), big.NewInt(exponent), nil)
+	target.Mul(target, big.NewInt(mantissa))
+
+	return target
+}
+
+//SetTarget - set current exponent
+func SetTarget(difficulty float64) {
+	oldTarget := GetTarget(currentMantissa, currentExponent)
+	newTarget := new(big.Int)
+	newTarget.Div(oldTarget, big.NewInt(int64(difficulty)))
+	fmt.Printf("old target: %x\n", oldTarget)
+	fmt.Printf("new target: %x\n", newTarget)
+	//maximum mantissa minus 0xFF0000 to find first value after it
+	/*for mantissa < (MantissaMax - 0xFF0000) {
+		mantissa = mantissa * 2
+		mantissa = mantissa * 2
+		mantissa = mantissa * 2
+		fmt.Printf("mantissa dec: %e\n", mantissa)
+		fmt.Printf("mantissa: %x\n", uint64(mantissa))
+		currentExponent--
+	}*/
+	//currentMantissa = mantissa
 }
 
 func countZeros(hash string) int16 {
@@ -133,24 +181,6 @@ func countZeros(hash string) int16 {
 		}
 	}
 	return firstZeros
-}
-
-//SetExponent - s4et current exponent
-func SetExponent(mantissa float64) {
-	fmt.Printf("mantissa float hex: %x\n", math.Float64bits(mantissa))
-	fmt.Printf("mantissa dec: %f\n", mantissa)
-	fmt.Printf("mantissa dec exp: %e\n", mantissa)
-	fmt.Printf("mantissa: %x\n", uint64(mantissa))
-	//maximum mantissa minus 0xFF0000 to find first value after it
-	for mantissa < (MantissaMax - 0xFF0000) {
-		mantissa = mantissa * 2
-		mantissa = mantissa * 2
-		mantissa = mantissa * 2
-		fmt.Printf("mantissa dec: %e\n", mantissa)
-		fmt.Printf("mantissa: %x\n", uint64(mantissa))
-		currentExponent--
-	}
-	currentMantissa = mantissa
 }
 
 /*
@@ -176,13 +206,13 @@ func TargetString() string {
 		b[i] = '0'
 	}
 
-	expPos := targetLen - currentExponent*2
+	//expPos := targetLen - currentExponent*2
 
-	mIdx := 0
-	for sIdx := expPos - len(mantissaStr); sIdx < expPos; sIdx++ {
+	//mIdx := 0
+	/*for sIdx := expPos - len(mantissaStr); sIdx < expPos; sIdx++ {
 		b[sIdx] = mantissaStr[mIdx]
 		mIdx++
-	}
+	}*/
 
 	return string(b)
 }
