@@ -13,8 +13,8 @@ import (
 	"golang.org/x/crypto/scrypt"
 )
 
-//DefaultMantissa - default mantissa for system
-const DefaultMantissa = 0x0FFFF0
+//DefaultMantissa2 - default mantissa for system
+const DefaultMantissa2 = 0x0FFFF0
 
 //MantissaMax - maximum mantissa value
 const MantissaMax = 0xFFFFFF
@@ -22,7 +22,7 @@ const MantissaMax = 0xFFFFFF
 //DefaultExponent - default exponent for system
 const DefaultExponent = 29
 
-var currentMantissa float64 = DefaultMantissa
+var currentMantissa float64 = DefaultMantissa2
 var currentExponent = DefaultExponent
 
 //MaxTarget - max target for hash comparision
@@ -111,7 +111,7 @@ func main() {
 	fmt.Printf("new difficulty: %f\n", newDifficulty)
 
 	//currentMantissa = DefaultMantissa / newDifficulty
-	SetExponent(DefaultMantissa / newDifficulty)
+	SetExponent(DefaultMantissa2 / newDifficulty)
 	fmt.Printf("new target: %x\n", uint64(currentMantissa))
 	fmt.Printf("new exponent: %x\n", currentExponent)
 
@@ -143,7 +143,9 @@ func SetExponent(mantissa float64) {
 	fmt.Printf("mantissa: %x\n", uint64(mantissa))
 	//maximum mantissa minus 0xFF0000 to find first value after it
 	for mantissa < (MantissaMax - 0xFF0000) {
-		mantissa = mantissa * 10
+		mantissa = mantissa * 2
+		mantissa = mantissa * 2
+		mantissa = mantissa * 2
 		fmt.Printf("mantissa dec: %e\n", mantissa)
 		fmt.Printf("mantissa: %x\n", uint64(mantissa))
 		currentExponent--
