@@ -9,15 +9,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/blockcypher/gox11hash"
-	"golang.org/x/crypto/scrypt"
+	"bitbucket.org/albert_andrejev/free_info/utils"
 )
 
 //DefaultMantissa - default mantissa for system
 const DefaultMantissa = 0xFFFF00
 
 //MantissaMax - maximum mantissa value
-const MantissaMax = 0xFFFFFF
+const MantissaMax = 0xFFFFFF00
 
 //DefaultExponent - default exponent for system
 const DefaultExponent = 57
@@ -25,10 +24,6 @@ const DefaultExponent = 57
 var currentMantissa int64 = DefaultMantissa
 var currentExponent int64 = DefaultExponent
 
-//MaxTarget - max target for hash comparision
-//const MaxTarget string = "0ffff00000000000000000000000000000000000000000000000000000000000" //0x1dffff00
-//Target = mantissa * 2^(8 * (exponent – 3)) (exponent - 1d)
-//0ffff00000000000000000000000000000000000000000000000000000000000
 //0ffff00000000000000000000000000000000000000000000000000000000000
 
 //DefaultDifficulty Starting calculation difficulty
@@ -51,15 +46,6 @@ type Transaction struct {
 
 func main() {
 	var bigI = new(big.Int)
-	/*bigI := big.NewInt(DefaultMantissa)
-	bigI.Exp(big.NewInt(16), big.NewInt(DefaultExponent), nil)
-	bigI.Mul(bigI, big.NewInt(DefaultMantissa))*/
-	//fmt.Printf("1 Big int: %x\n", GetTarget(DefaultMantissa, DefaultExponent))
-	/*result, success := bigI.SetString(MaxTarget, 16)
-	if !success {
-		fmt.Println("Not successed")
-	}
-	fmt.Printf("Big int  : %x\n", result)*/
 
 	rand.Seed(time.Now().UnixNano())
 	var hashStr string
@@ -85,18 +71,15 @@ func main() {
 				fmt.Println(err)
 				return
 			}
-			val := gox11hash.Sum(jsonStr)
-			scryptHash, err := scrypt.Key(val, nil, 32768, 8, 1, 32)
+			dataHash, err := utils.X12Hash(jsonStr)
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
 
-			hashStr = hex.EncodeToString(scryptHash)
+			hashStr = hex.EncodeToString(dataHash)
 			//fmt.Println(hashStr)
 
-			//fmt.Println(countZeros(hashStr))
-			//zeros := countZeros(hashStr)
 			transJSON = string(jsonStr)
 			hashI, success := bigI.SetString(hashStr, 16)
 			if !success {
@@ -129,12 +112,9 @@ func main() {
 	fmt.Printf("Total duration: %v\n", processDuration)
 	fmt.Printf("new difficulty: %f\n", newDifficulty)
 
-	//currentMantissa = DefaultMantissa / newDifficulty
 	SetTarget(newDifficulty)
 	fmt.Printf("new target: %x\n", currentMantissa)
 	fmt.Printf("new exponent: %x\n", currentExponent)
-
-	//fmt.Printf("Target string: %s\n", TargetString())
 }
 
 //GetTarget - calculate target number based on difficulty bits
@@ -149,38 +129,43 @@ func GetTarget(mantissa int64, exponent int64) *big.Int {
 
 //SetTarget - set current exponent
 func SetTarget(difficulty float64) {
+	var val []byte
+	var trimmedVal []byte
 	oldTarget := GetTarget(currentMantissa, currentExponent)
 	newTarget := new(big.Int)
 	newTarget.Div(oldTarget, big.NewInt(int64(difficulty)))
 	fmt.Printf("old target: %x\n", oldTarget)
 	fmt.Printf("new target: %x\n", newTarget)
-	//maximum mantissa minus 0xFF0000 to find first value after it
-	/*for mantissa < (MantissaMax - 0xFF0000) {
-		mantissa = mantissa * 2
-		mantissa = mantissa * 2
-		mantissa = mantissa * 2
-		fmt.Printf("mantissa dec: %e\n", mantissa)
-		fmt.Printf("mantissa: %x\n", uint64(mantissa))
-		currentExponent--
-	}*/
-	//currentMantissa = mantissa
-}
 
-func countZeros(hash string) int16 {
-	var firstZeros int16
-	for i := 0; i < len(hash); i++ {
-		num, err := strconv.ParseInt(string(hash[i]), 10, 16)
-		if err != nil {
-			return 0
-		}
-
-		if num == 0 {
-			firstZeros++
+	targetBytes := newTarget.Bytes()
+	first := true
+	for idx := 0; idx < len(targetBytes); idx++ {
+		if targetBytes[idx] == 0 && first {
+			continue
 		} else {
-			break
+			first = false
+			trimmedVal = append(trimmedVal, targetBytes[idx])
 		}
+
 	}
-	return firstZeros
+
+	fmt.Printf("target bytes: %s\n", hex.EncodeToString(trimmedVal))
+	for idx := 0; (idx < 3) && (idx < (len(targetBytes) - 1)); idx++ {
+		val = append(val, trimmedVal[idx])
+	}
+
+	tmpMantissa, err := strconv.ParseInt(hex.EncodeToString(val), 16, 64)
+	if err == nil {
+		currentMantissa = tmpMantissa
+	} else {
+		fmt.Println(err)
+	}
+	fmt.Printf("current mantissa: %x\n", currentMantissa)
+
+	currentExponent = (int64(len(trimmedVal) - len(val))) * 2
+
+	currentTarget := GetTarget(currentMantissa, currentExponent)
+	fmt.Printf("new current target: %x\n", currentTarget)
 }
 
 /*
