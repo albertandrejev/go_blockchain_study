@@ -1,8 +1,13 @@
 package utils
 
 import (
+	"hash"
+
+	"golang.org/x/crypto/ripemd160"
+
 	"github.com/blockcypher/gox11hash"
 	"golang.org/x/crypto/scrypt"
+	"golang.org/x/crypto/sha3"
 )
 
 type hashCrypt struct {
@@ -34,4 +39,14 @@ func x12HashIntern(data []byte, hashCrypt iHashCrypt) ([]byte, error) {
 		return nil, err
 	}
 	return scryptHash, nil
+}
+
+//SimpleHash - calculate SHA3 + RIPEMD160 hash over byte array
+func SimpleHash(data []byte) []byte {
+	return simpleHashIntern(data, sha3.New256(), ripemd160.New())
+}
+
+func simpleHashIntern(data []byte, sha3 hash.Hash, ripemd160 hash.Hash) []byte {
+	sha3Hash := sha3.Sum(data)
+	return ripemd160.Sum(sha3Hash)
 }

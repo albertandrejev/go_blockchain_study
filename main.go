@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"bitbucket.org/albert_andrejev/free_info/types"
 	"bitbucket.org/albert_andrejev/free_info/utils"
 )
 
@@ -35,21 +36,13 @@ const Avg10BlocksDuration float64 = 3000
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 //Transaction Simple transaction type
-type Transaction struct {
-	PrevTxID   string
-	TxID       string
-	Nonce      uint64
-	ExtraNonce uint64
-	Sign       string
-	PubKey     string
-}
 
 func main() {
 	var bigI = new(big.Int)
 
 	rand.Seed(time.Now().UnixNano())
 	var hashStr string
-	var transJSON string
+	var blockJSON string
 	var avgDuration time.Duration
 
 	maxUint64 := ^uint64(0)
@@ -60,31 +53,42 @@ func main() {
 
 	for i := 0; i < 10; i++ {
 		start := time.Now()
-		trans := &Transaction{Sign: RandStringRunes(16)}
+		block := &types.Block{
+			PrevBlockID: "0000000000000000000000000000000000000000000000000000000000000000",
+			BlockID:     "0000000000000000000000000000000000000000000000000000000000000000"}
+		trans := &types.Transaction{
+			TxID: "0000000000000000000000000000000000000000000000000000000000000000",
+			Sign: RandStringRunes(16),
+		}
+		transJSON, err := json.Marshal(trans)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		txID := utils.SimpleHash(transJSON)
+		trans.TxID = hex.EncodeToString(txID)
+
+		block.Transactions = append(block.Transactions, trans)
 		nonce := uint64(0)
 		extraNonce := uint64(0)
 		for {
-			trans.Nonce = nonce
-			trans.ExtraNonce = extraNonce
-			jsonStr, err := json.Marshal(trans)
+			block.Nonce = nonce
+			block.ExtraNonce = extraNonce
+			jsonStr, err := json.Marshal(block)
 			if err != nil {
 				fmt.Println(err)
-				return
+				continue
 			}
 			dataHash, err := utils.X12Hash(jsonStr)
 			if err != nil {
 				fmt.Println(err)
-				return
+				continue
 			}
-
 			hashStr = hex.EncodeToString(dataHash)
 			//fmt.Println(hashStr)
 
-			transJSON = string(jsonStr)
-			hashI, success := bigI.SetString(hashStr, 16)
-			if !success {
-				fmt.Println("Not successed")
-			}
+			blockJSON = string(jsonStr)
+			hashI := bigI.SetBytes(dataHash)
 
 			if hashI.Cmp(currentTarget) == -1 {
 				fmt.Println("by max target")
@@ -100,7 +104,7 @@ func main() {
 		}
 		stop := time.Now()
 		fmt.Printf("Elapsed: %v\n", stop.Sub(start))
-		fmt.Println(string(transJSON))
+		fmt.Println(string(blockJSON))
 		fmt.Println(hashStr)
 		avgDuration = (avgDuration*time.Duration(i) + stop.Sub(start)) / time.Duration(i+1)
 	}
