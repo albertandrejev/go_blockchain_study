@@ -16,9 +16,6 @@ import (
 //DefaultMantissa - default mantissa for system
 const DefaultMantissa = 0xFFFF00
 
-//MantissaMax - maximum mantissa value
-const MantissaMax = 0xFFFFFF00
-
 //DefaultExponent - default exponent for system
 const DefaultExponent = 57
 
@@ -29,7 +26,6 @@ var currentExponent int64 = DefaultExponent
 //00000000000000000066bf764f9bad8d7c5658a23afd6b8625a8558879c7f9b6
 //9afe25c40b182150824ceae419b1e8e688edc9c16fbca60b50221b0002683bb3
 //61626364a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b
-80f8434a9c1185a5c5e9fc54612808977ee8f548b2258d31
 
 //DefaultDifficulty Starting calculation difficulty
 const DefaultDifficulty float64 = 1
@@ -46,7 +42,6 @@ func main() {
 
 	rand.Seed(time.Now().UnixNano())
 	var hashStr string
-	var blockJSON string
 	var avgDuration time.Duration
 
 	maxUint64 := ^uint64(0)
@@ -58,32 +53,39 @@ func main() {
 	for i := 0; i < 10; i++ {
 		start := time.Now()
 		block := &types.Block{
-			PrevBlockID: "0000000000000000000000000000000000000000000000000000000000000000",
-			BlockID:     "0000000000000000000000000000000000000000000000000000000000000000"}
-		trans := &types.Transaction{
-			TxID: "0000000000000000000000000000000000000000000000000000000000000000",
-			Sign: RandStringRunes(16),
+			Data: types.BlockData{
+				PrevBlockID: "0000000000000000000000000000000000000000000000000000000000000000",
+				MerkleRoot:  RandStringRunes(64),
+				Target:      uint32(currentMantissa<<8 + currentExponent),
+				Timestamp:   time.Now().Unix(),
+			},
 		}
-		transJSON, err := json.Marshal(trans)
+		trans := &types.Transaction{
+			Data: types.TransactionData{
+				PubKey:    RandStringRunes(16),
+				Timestamp: time.Now().Unix(),
+			},
+		}
+		transDataJSON, err := json.Marshal(trans.Data)
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
-		txID := utils.SimpleHash(transJSON)
+		txID := utils.SimpleHash(transDataJSON)
 		trans.TxID = hex.EncodeToString(txID)
 
 		block.Transactions = append(block.Transactions, trans)
 		nonce := uint64(0)
 		extraNonce := uint64(0)
 		for {
-			block.Nonce = nonce
-			block.ExtraNonce = extraNonce
-			jsonStr, err := json.Marshal(block)
+			block.Data.Nonce = nonce
+			block.Data.ExtraNonce = string(extraNonce)
+			blockDataJSON, err := json.Marshal(block.Data)
 			if err != nil {
 				fmt.Println(err)
 				continue
 			}
-			dataHash, err := utils.X12Hash(jsonStr)
+			dataHash, err := utils.X12Hash(blockDataJSON)
 			if err != nil {
 				fmt.Println(err)
 				continue
@@ -91,11 +93,11 @@ func main() {
 			hashStr = hex.EncodeToString(dataHash)
 			//fmt.Println(hashStr)
 
-			blockJSON = string(jsonStr)
 			hashI := bigI.SetBytes(dataHash)
 
 			if hashI.Cmp(currentTarget) == -1 {
 				fmt.Println("by max target")
+				block.BlockID = hashStr
 				break
 			}
 
@@ -108,6 +110,11 @@ func main() {
 		}
 		stop := time.Now()
 		fmt.Printf("Elapsed: %v\n", stop.Sub(start))
+
+		blockJSON, err := json.Marshal(block)
+		if err != nil {
+			fmt.Println(err)
+		}
 		fmt.Println(string(blockJSON))
 		fmt.Println(hashStr)
 		avgDuration = (avgDuration*time.Duration(i) + stop.Sub(start)) / time.Duration(i+1)

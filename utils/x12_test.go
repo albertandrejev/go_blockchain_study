@@ -13,8 +13,8 @@ var x11Data = []byte{'a', 'b', 'c', 'd'}
 var scryptData = []byte{'d', 'c', 'b', 'a'}
 var hashData = []byte{'1', '2', '3', '4'}
 
-func x12MockInit(ctrl *gomock.Controller, err error) *utils_mock.MockiX12HashCrypt {
-	crypt := utils_mock.NewMockiX12HashCrypt(ctrl)
+func x12MockInit(ctrl *gomock.Controller, err error) *utils_mock.MockiX12HashWrap {
+	crypt := utils_mock.NewMockiX12HashWrap(ctrl)
 	crypt.EXPECT().X11(gomock.Eq(x11Data)).Return(scryptData)
 	crypt.EXPECT().Scrypt(
 		gomock.Eq(scryptData),
@@ -31,7 +31,7 @@ func x12MockInit(ctrl *gomock.Controller, err error) *utils_mock.MockiX12HashCry
 func TestX11LibCall(t *testing.T) {
 	expected := []byte{154, 30, 187, 231, 240, 48, 57, 248, 134, 114, 110, 192, 76, 29,
 		131, 38, 53, 226, 137, 12, 76, 230, 163, 231, 135, 102, 46, 96, 233, 150, 25, 157}
-	crypt := new(hashCrypt)
+	crypt := new(x12HashWrapper)
 
 	hash := crypt.X11(x11Data)
 
@@ -43,7 +43,7 @@ func TestX11LibCall(t *testing.T) {
 func TestScryptLibCall(t *testing.T) {
 	expected := []byte{62, 237, 239, 118, 106, 64, 235, 243, 104, 241, 73, 33, 224, 58, 228,
 		34, 247, 190, 94, 114, 139, 199, 203, 228, 238, 146, 81, 73, 164, 182, 168, 109}
-	crypt := new(hashCrypt)
+	crypt := new(x12HashWrapper)
 
 	hash, err := crypt.Scrypt(scryptData, nil, 32768, 8, 1, 32)
 

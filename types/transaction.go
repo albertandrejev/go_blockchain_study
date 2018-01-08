@@ -2,7 +2,7 @@ package types
 
 //Transaction - contains information about transaction
 type Transaction struct {
-	TxID   string
-	Sign   string
-	PubKey string
+	TxID string
+	Sign string
+	Data TransactionData
 }
