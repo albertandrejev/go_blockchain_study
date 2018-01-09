@@ -6,25 +6,36 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-type simpleHashWrap struct {
+//SimpleHashWrap - wrapper for 3rd party library functions
+type SimpleHashWrap struct {
 }
 
-func (t simpleHashWrap) Blake2s(data []byte) [32]byte {
+//Blake2s wrapper method
+func (t SimpleHashWrap) Blake2s(data []byte) [32]byte {
 	return blake2s.Sum256(data)
 }
 
-func (t simpleHashWrap) Sha256(data []byte) [32]byte {
+//Sha256 wrapper method
+func (t SimpleHashWrap) Sha256(data []byte) [32]byte {
 	return sha3.Sum256(data)
 }
 
-//SimpleHash - calculate SHA3 + BLAKE2s hash over byte array
-func SimpleHash(data []byte) []byte {
-	wrapper := new(simpleHashWrap)
-	return simpleHashIntern(data, wrapper)
+//SimpleHash module
+type SimpleHash struct {
+	wrapper iSimpleHashWrap
 }
 
-func simpleHashIntern(data []byte, wrapper iSimpleHashWrap) []byte {
-	sha3Hash := wrapper.Sha256(data)
-	blakeHash := wrapper.Blake2s(sha3Hash[:])
+//NewSimpleHash - SimpleHash module constructor
+func NewSimpleHash(wrapper iSimpleHashWrap) *SimpleHash {
+	x12 := new(SimpleHash)
+	x12.wrapper = wrapper
+
+	return x12
+}
+
+//Sum256 - calculate SHA3 + BLAKE2s hash over byte array
+func (t SimpleHash) Sum256(data []byte) []byte {
+	sha3Hash := t.wrapper.Sha256(data)
+	blakeHash := t.wrapper.Blake2s(sha3Hash[:])
 	return blakeHash[:]
 }

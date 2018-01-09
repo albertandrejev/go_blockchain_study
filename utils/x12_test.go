@@ -56,28 +56,14 @@ func TestScryptLibCall(t *testing.T) {
 	}
 }
 
-func TestX12HashMain(t *testing.T) {
-	expected := []byte{123, 214, 106, 9, 98, 141, 104, 80, 210, 164, 80, 93, 65, 148,
-		40, 175, 239, 84, 130, 143, 158, 43, 247, 239, 211, 90, 127, 12, 5, 29, 70, 254}
-
-	hash, err := X12Hash(x11Data)
-
-	if bytes.Compare(expected[:], hash[:]) != 0 {
-		t.Errorf("Wrong return hash value.\nActual: %v.\nExpected: %v", hash, expected)
-	}
-
-	if err != nil {
-		t.Error("Should run without errors")
-	}
-}
-
 func TestX12Hash_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	crypt := x12MockInit(ctrl, nil)
+	x12 := NewX12Hash(crypt)
 
-	hash, err := x12HashIntern(x11Data, crypt)
+	hash, err := x12.Sum256(x11Data)
 
 	if bytes.Compare(hashData[:], hash[:]) != 0 {
 		t.Error("wrong return hash value")
@@ -95,8 +81,9 @@ func TestX12Hash_WithError(t *testing.T) {
 	err := errors.New("Unittest error")
 
 	crypt := x12MockInit(ctrl, err)
+	x12 := NewX12Hash(crypt)
 
-	hash, err := x12HashIntern(x11Data, crypt)
+	hash, err := x12.Sum256(x11Data)
 
 	if hash != nil {
 		t.Error("Should not contain any value")

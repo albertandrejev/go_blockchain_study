@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
+	"bitbucket.org/albert_andrejev/free_info/factory"
 	"bitbucket.org/albert_andrejev/free_info/types"
-	"bitbucket.org/albert_andrejev/free_info/utils"
 )
 
 //DefaultMantissa - default mantissa for system
@@ -39,6 +39,7 @@ var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 func main() {
 	var bigI = new(big.Int)
+	factory := factory.NewMainFactory()
 
 	rand.Seed(time.Now().UnixNano())
 	var hashStr string
@@ -49,6 +50,8 @@ func main() {
 	processingStart := time.Now()
 	currentTarget := GetTarget(currentMantissa, currentExponent)
 	fmt.Printf("current target: %x\n", currentTarget)
+	simpleHash := factory.GetSimpleHash()
+	x12Hash := factory.GetX11Hash()
 
 	for i := 0; i < 10; i++ {
 		start := time.Now()
@@ -71,7 +74,7 @@ func main() {
 			fmt.Println(err)
 			continue
 		}
-		txID := utils.SimpleHash(transDataJSON)
+		txID := simpleHash.Sum256(transDataJSON)
 		trans.TxID = hex.EncodeToString(txID)
 
 		block.Transactions = append(block.Transactions, trans)
@@ -85,7 +88,7 @@ func main() {
 				fmt.Println(err)
 				continue
 			}
-			dataHash, err := utils.X12Hash(blockDataJSON)
+			dataHash, err := x12Hash.Sum256(blockDataJSON)
 			if err != nil {
 				fmt.Println(err)
 				continue
