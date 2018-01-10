@@ -14,7 +14,7 @@ func NewMainFactory() *MainFactory {
 }
 
 //GetSimpleHash simple hashing (sha3+blake2s) factory
-func (t MainFactory) GetSimpleHash() *utils.SimpleHash {
+func (t MainFactory) GetSimpleHash() utils.ISimpleHash {
 	if t.simpleHash == nil {
 		t.simpleHash = utils.NewSimpleHash(new(utils.SimpleHashWrap))
 	}
@@ -22,7 +22,7 @@ func (t MainFactory) GetSimpleHash() *utils.SimpleHash {
 }
 
 //GetX11Hash simple hashing (x11+scrypt) factory
-func (t MainFactory) GetX11Hash() *utils.X12Hash {
+func (t MainFactory) GetX11Hash() utils.IX12Hash {
 	if t.x11Hash == nil {
 		t.x11Hash = utils.NewX12Hash(new(utils.X12HashWrapper))
 	}

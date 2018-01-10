@@ -20,6 +20,11 @@ func (t SimpleHashWrap) Sha256(data []byte) [32]byte {
 	return sha3.Sum256(data)
 }
 
+//ISimpleHash Interface for SimpleHash module
+type ISimpleHash interface {
+	Sum256(data []byte) []byte
+}
+
 //SimpleHash module
 type SimpleHash struct {
 	wrapper iSimpleHashWrap

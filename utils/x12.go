@@ -19,6 +19,11 @@ func (t X12HashWrapper) Scrypt(data []byte, salt []byte, N int, r int, p int, ke
 	return scrypt.Key(data, salt, N, r, p, keyLen)
 }
 
+//IX12Hash Interface for SimpleHash module
+type IX12Hash interface {
+	Sum256(data []byte) ([]byte, error)
+}
+
 //X12Hash module
 type X12Hash struct {
 	wrapper iX12HashWrap
