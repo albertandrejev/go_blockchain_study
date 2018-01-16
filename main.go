@@ -2,15 +2,18 @@ package main
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"math/rand"
 	"strconv"
 	"time"
 
+	"bitbucket.org/albert_andrejev/free_info/merkle"
+	"bitbucket.org/albert_andrejev/free_info/wrappers"
+
 	"bitbucket.org/albert_andrejev/free_info/factory"
 	"bitbucket.org/albert_andrejev/free_info/types"
+	"bitbucket.org/albert_andrejev/free_info/utils"
 )
 
 //DefaultMantissa - default mantissa for system
@@ -58,32 +61,28 @@ func main() {
 		block := &types.Block{
 			Data: types.BlockData{
 				PrevBlockID: "0000000000000000000000000000000000000000000000000000000000000000",
-				MerkleRoot:  RandStringRunes(64),
 				Target:      uint32(currentMantissa<<8 + currentExponent),
 				Timestamp:   time.Now().Unix(),
 			},
 		}
-		trans := &types.Transaction{
-			Data: types.TransactionData{
-				PubKey:    RandStringRunes(16),
-				Timestamp: time.Now().Unix(),
-			},
-		}
-		transDataJSON, err := json.Marshal(trans.Data)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-		txID := simpleHash.Sum256(transDataJSON)
-		trans.TxID = hex.EncodeToString(txID)
 
-		block.Transactions = append(block.Transactions, trans)
+		jsonWrapper := new(wrappers.JSONWrapper)
+		block.Transactions = append(block.Transactions, GetTransaction(simpleHash, jsonWrapper))
+		block.Transactions = append(block.Transactions, GetTransaction(simpleHash, jsonWrapper))
+		block.Transactions = append(block.Transactions, GetTransaction(simpleHash, jsonWrapper))
+		block.Transactions = append(block.Transactions, GetTransaction(simpleHash, jsonWrapper))
+		block.Transactions = append(block.Transactions, GetTransaction(simpleHash, jsonWrapper))
+		block.Transactions = append(block.Transactions, GetTransaction(simpleHash, jsonWrapper))
+
+		merkle := merkle.NewTree(factory, jsonWrapper)
+		allSums := merkle.Init(block.Transactions)
+		block.Data.MerkleRoot = hex.EncodeToString(merkle.CalcRoot(allSums))
 		nonce := uint64(0)
 		extraNonce := uint64(0)
 		for {
 			block.Data.Nonce = nonce
 			block.Data.ExtraNonce = string(extraNonce)
-			blockDataJSON, err := json.Marshal(block.Data)
+			blockDataJSON, err := jsonWrapper.Encode(block.Data)
 			if err != nil {
 				fmt.Println(err)
 				continue
@@ -114,7 +113,7 @@ func main() {
 		stop := time.Now()
 		fmt.Printf("Elapsed: %v\n", stop.Sub(start))
 
-		blockJSON, err := json.Marshal(block)
+		blockJSON, err := jsonWrapper.Encode(block)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -133,6 +132,25 @@ func main() {
 	SetTarget(newDifficulty)
 	fmt.Printf("new target: %x\n", currentMantissa)
 	fmt.Printf("new exponent: %x\n", currentExponent)
+}
+
+//GetTransaction return transaction
+func GetTransaction(simpleHash utils.ISimpleHash, json wrappers.IJSONWrapper) *types.Transaction {
+
+	trans := &types.Transaction{
+		Data: types.TransactionData{
+			PubKey:    RandStringRunes(16),
+			Timestamp: time.Now().Unix(),
+		},
+	}
+	transDataJSON, err := json.Encode(trans.Data)
+	if err != nil {
+		fmt.Println(err)
+	}
+	txID := simpleHash.Sum256(transDataJSON)
+	trans.TxID = hex.EncodeToString(txID)
+
+	return trans
 }
 
 //GetTarget - calculate target number based on difficulty bits
