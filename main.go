@@ -33,10 +33,17 @@ var currentExponent int64 = DefaultExponent
 //DefaultDifficulty Starting calculation difficulty
 const DefaultDifficulty float64 = 1
 
-//Avg10BlocksDuration - duration in seconds for processing 10 blocks. Used for difficulty calculation
-const Avg10BlocksDuration float64 = 3000
+var currentDifficulty = DefaultDifficulty
+
+//AvgBlocksDuration - duration in seconds for processing 10 blocks. Used for difficulty calculation
+const AvgBlocksDuration float64 = 300
+
+//AvgBlocksAmount amount of blocks used to calculate power of the network
+const AvgBlocksAmount int = 10
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+var blockChain []*types.Block
 
 //Transaction Simple transaction type
 
@@ -51,28 +58,25 @@ func main() {
 	maxUint64 := ^uint64(0)
 
 	processingStart := time.Now()
-	currentTarget := GetTarget(currentMantissa, currentExponent)
-	fmt.Printf("current target: %x\n", currentTarget)
 	simpleHash := factory.GetSimpleHash()
 	x12Hash := factory.GetX11Hash()
 
-	for i := 0; i < 10; i++ {
+	prevBlockID := "0000000000000000000000000000000000000000000000000000000000000000"
+
+	for i := 0; i < 30; i++ {
 		start := time.Now()
-		block := &types.Block{
-			Data: types.BlockData{
-				PrevBlockID: "0000000000000000000000000000000000000000000000000000000000000000",
-				Target:      uint32(currentMantissa<<8 + currentExponent),
-				Timestamp:   time.Now().Unix(),
-			},
-		}
+		block := CreateBlock(prevBlockID)
+		blockChain = append(blockChain, block)
+		currentTarget := GetTarget(currentMantissa, currentExponent)
+		fmt.Printf("block target: %x\n", currentTarget)
 
 		jsonWrapper := new(wrappers.JSONWrapper)
-		block.Transactions = append(block.Transactions, GetTransaction(simpleHash, jsonWrapper))
-		block.Transactions = append(block.Transactions, GetTransaction(simpleHash, jsonWrapper))
-		block.Transactions = append(block.Transactions, GetTransaction(simpleHash, jsonWrapper))
-		block.Transactions = append(block.Transactions, GetTransaction(simpleHash, jsonWrapper))
-		block.Transactions = append(block.Transactions, GetTransaction(simpleHash, jsonWrapper))
-		block.Transactions = append(block.Transactions, GetTransaction(simpleHash, jsonWrapper))
+		block.Transactions = append(block.Transactions, CreateTransaction(simpleHash, jsonWrapper))
+		block.Transactions = append(block.Transactions, CreateTransaction(simpleHash, jsonWrapper))
+		block.Transactions = append(block.Transactions, CreateTransaction(simpleHash, jsonWrapper))
+		block.Transactions = append(block.Transactions, CreateTransaction(simpleHash, jsonWrapper))
+		block.Transactions = append(block.Transactions, CreateTransaction(simpleHash, jsonWrapper))
+		block.Transactions = append(block.Transactions, CreateTransaction(simpleHash, jsonWrapper))
 
 		merkle := merkle.NewTree(factory, jsonWrapper)
 		allSums := merkle.Init(block.Transactions)
@@ -98,8 +102,8 @@ func main() {
 			hashI := bigI.SetBytes(dataHash)
 
 			if hashI.Cmp(currentTarget) == -1 {
-				fmt.Println("by max target")
 				block.BlockID = hashStr
+				prevBlockID = hashStr
 				break
 			}
 
@@ -113,29 +117,60 @@ func main() {
 		stop := time.Now()
 		fmt.Printf("Elapsed: %v\n", stop.Sub(start))
 
-		blockJSON, err := jsonWrapper.Encode(block)
+		/*blockJSON, err := jsonWrapper.Encode(block)
 		if err != nil {
 			fmt.Println(err)
 		}
-		fmt.Println(string(blockJSON))
-		fmt.Println(hashStr)
+		fmt.Println(string(blockJSON))*/
+		fmt.Printf("Block ID: %v\n", hashStr)
 		avgDuration = (avgDuration*time.Duration(i) + stop.Sub(start)) / time.Duration(i+1)
 	}
 	processDuration := time.Now().Sub(processingStart)
 
-	newDifficulty := DefaultDifficulty * (Avg10BlocksDuration / processDuration.Seconds())
-
 	fmt.Printf("Average Elapsed: %v\n", avgDuration)
 	fmt.Printf("Total duration: %v\n", processDuration)
-	fmt.Printf("new difficulty: %f\n", newDifficulty)
-
-	SetTarget(newDifficulty)
-	fmt.Printf("new target: %x\n", currentMantissa)
-	fmt.Printf("new exponent: %x\n", currentExponent)
 }
 
-//GetTransaction return transaction
-func GetTransaction(simpleHash utils.ISimpleHash, json wrappers.IJSONWrapper) *types.Transaction {
+//CreateBlock create block of transactions
+func CreateBlock(prevBlockID string) *types.Block {
+	totalBlocks := len(blockChain)
+	if totalBlocks > AvgBlocksAmount {
+		startBlockIdx := totalBlocks - AvgBlocksAmount
+		startBlock := blockChain[startBlockIdx]
+		lastBlock := blockChain[totalBlocks-1]
+
+		startTime := time.Unix(startBlock.Data.Timestamp, 0)
+		endTime := time.Unix(lastBlock.Data.Timestamp, 0)
+
+		processDuration := endTime.Sub(startTime)
+
+		prevMantissa, prevExponent := SeparateTarget(lastBlock.Data.Target)
+		prevTarget := GetTarget(prevMantissa, prevExponent)
+		fmt.Printf("prev block target: %x\n", prevTarget)
+		defaultTarget := GetTarget(DefaultMantissa, DefaultExponent)
+
+		lastBlockDifficulty := defaultTarget.Div(defaultTarget, prevTarget)
+		fmt.Printf("last difficulty: %x\n", lastBlockDifficulty.Int64())
+
+		newDifficulty := float64(lastBlockDifficulty.Int64()) * (AvgBlocksDuration / processDuration.Seconds())
+		fmt.Printf("new difficulty: %f\n", newDifficulty)
+
+		SetTarget(newDifficulty)
+	}
+
+	target := uint32(currentMantissa<<8 + currentExponent)
+
+	return &types.Block{
+		Data: types.BlockData{
+			PrevBlockID: prevBlockID,
+			Target:      target,
+			Timestamp:   time.Now().Unix(),
+		},
+	}
+}
+
+//CreateTransaction return transaction
+func CreateTransaction(simpleHash utils.ISimpleHash, json wrappers.IJSONWrapper) *types.Transaction {
 
 	trans := &types.Transaction{
 		Data: types.TransactionData{
@@ -156,21 +191,30 @@ func GetTransaction(simpleHash utils.ISimpleHash, json wrappers.IJSONWrapper) *t
 //GetTarget - calculate target number based on difficulty bits
 func GetTarget(mantissa int64, exponent int64) *big.Int {
 	var target = new(big.Int)
-	//target := big.NewInt(DefaultMantissa)
 	target.Exp(big.NewInt(16), big.NewInt(exponent), nil)
 	target.Mul(target, big.NewInt(mantissa))
 
 	return target
 }
 
+//SeparateTarget return mantissa and exponent from target
+func SeparateTarget(target uint32) (int64, int64) {
+	exponent := target & 0x000000ff
+	mantissa := target >> 8
+
+	fmt.Printf("mantissa: %x, exponent: %x\n", mantissa, exponent)
+
+	return int64(mantissa), int64(exponent)
+}
+
 //SetTarget - set current exponent
 func SetTarget(difficulty float64) {
 	var val []byte
 	var trimmedVal []byte
-	oldTarget := GetTarget(currentMantissa, currentExponent)
+	defaultTarget := GetTarget(DefaultMantissa, DefaultExponent)
 	newTarget := new(big.Int)
-	newTarget.Div(oldTarget, big.NewInt(int64(difficulty)))
-	fmt.Printf("old target: %x\n", oldTarget)
+	newTarget.Div(defaultTarget, big.NewInt(int64(difficulty)))
+	fmt.Printf("old target: %x\n", defaultTarget)
 	fmt.Printf("new target: %x\n", newTarget)
 
 	targetBytes := newTarget.Bytes()
@@ -226,14 +270,6 @@ func TargetString() string {
 	for i := range b {
 		b[i] = '0'
 	}
-
-	//expPos := targetLen - currentExponent*2
-
-	//mIdx := 0
-	/*for sIdx := expPos - len(mantissaStr); sIdx < expPos; sIdx++ {
-		b[sIdx] = mantissaStr[mIdx]
-		mIdx++
-	}*/
 
 	return string(b)
 }
