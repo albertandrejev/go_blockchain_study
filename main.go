@@ -20,7 +20,7 @@ import (
 const DefaultMantissa = 0xFFFF00
 
 //DefaultExponent - default exponent for system
-const DefaultExponent = 57
+const DefaultExponent = 56
 
 var currentMantissa int64 = DefaultMantissa
 var currentExponent int64 = DefaultExponent
@@ -63,7 +63,7 @@ func main() {
 
 	prevBlockID := "0000000000000000000000000000000000000000000000000000000000000000"
 
-	for i := 0; i < 30; i++ {
+	for i := 0; i < 60; i++ {
 		start := time.Now()
 		block := CreateBlock(prevBlockID)
 		blockChain = append(blockChain, block)
@@ -143,6 +143,8 @@ func CreateBlock(prevBlockID string) *types.Block {
 		endTime := time.Unix(lastBlock.Data.Timestamp, 0)
 
 		processDuration := endTime.Sub(startTime)
+		fmt.Printf("10 blocks duration: %v\n", processDuration)
+		fmt.Printf("Average for one block: %v\n", processDuration.Seconds()/float64(AvgBlocksAmount))
 
 		prevMantissa, prevExponent := SeparateTarget(lastBlock.Data.Target)
 		prevTarget := GetTarget(prevMantissa, prevExponent)
@@ -213,7 +215,11 @@ func SetTarget(difficulty float64) {
 	var trimmedVal []byte
 	defaultTarget := GetTarget(DefaultMantissa, DefaultExponent)
 	newTarget := new(big.Int)
-	newTarget.Div(defaultTarget, big.NewInt(int64(difficulty)))
+	if int64(difficulty + 0.5) <= 0 {
+		return
+	}
+
+	newTarget.Div(defaultTarget, big.NewInt(int64(difficulty + 0.5)))
 	fmt.Printf("old target: %x\n", defaultTarget)
 	fmt.Printf("new target: %x\n", newTarget)
 
@@ -246,6 +252,9 @@ func SetTarget(difficulty float64) {
 
 	currentTarget := GetTarget(currentMantissa, currentExponent)
 	fmt.Printf("new current target: %x\n", currentTarget)
+
+	currentNormalDifficulty := defaultTarget.Div(defaultTarget, currentTarget)
+	fmt.Printf("actual current difficulty: %x\n", currentNormalDifficulty.Int64())
 }
 
 /*
