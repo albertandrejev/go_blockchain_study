@@ -66,7 +66,6 @@ func main() {
 	for i := 0; i < 60; i++ {
 		start := time.Now()
 		block := CreateBlock(prevBlockID)
-		blockChain = append(blockChain, block)
 		currentTarget := GetTarget(currentMantissa, currentExponent)
 		fmt.Printf("block target: %x\n", currentTarget)
 
@@ -104,6 +103,13 @@ func main() {
 			if hashI.Cmp(currentTarget) == -1 {
 				block.BlockID = hashStr
 				prevBlockID = hashStr
+				if CheckBlock(block, factory) {
+					blockChain = append(blockChain, block)
+					fmt.Println("Block was added to blockchain")
+				} else {
+					fmt.Println("Block was NOT added to blockchain")
+				}
+
 				break
 			}
 
@@ -129,6 +135,74 @@ func main() {
 
 	fmt.Printf("Average Elapsed: %v\n", avgDuration)
 	fmt.Printf("Total duration: %v\n", processDuration)
+}
+
+//CheckBlock for validity
+func CheckBlock(block *types.Block, factory factory.IMainFactory) bool {
+	//1. check block id hash
+	//1.2. check hash difficulty
+	//2. check transactions
+	//1. check block id hash
+	if CheckBlockID(block, factory) == false {
+		return false
+	}
+
+	return true
+}
+
+func CheckBlockDifficulty(block *types.Block) bool {
+	totalBlocks := len(blockChain)
+	if totalBlocks > AvgBlocksAmount {
+		startBlockIdx := totalBlocks - AvgBlocksAmount
+		startBlock := blockChain[startBlockIdx]
+		lastBlock := blockChain[totalBlocks-1]
+
+		startTime := time.Unix(startBlock.Data.Timestamp, 0)
+		endTime := time.Unix(lastBlock.Data.Timestamp, 0)
+
+		processDuration := endTime.Sub(startTime)
+		prevMantissa, prevExponent := SeparateTarget(lastBlock.Data.Target)
+		prevTarget := GetTarget(prevMantissa, prevExponent)
+		fmt.Printf("prev block target: %x\n", prevTarget)
+		defaultTarget := GetTarget(DefaultMantissa, DefaultExponent)
+
+		lastBlockDifficulty := defaultTarget.Div(defaultTarget, prevTarget)
+		fmt.Printf("last difficulty: %x\n", lastBlockDifficulty.Int64())
+
+		newDifficulty := float64(lastBlockDifficulty.Int64()) * (AvgBlocksDuration / processDuration.Seconds())
+		fmt.Printf("new difficulty: %f\n", newDifficulty)
+
+		SetTarget(newDifficulty)
+	}
+}
+
+//CheckBlockID - current block id
+func CheckBlockID(block *types.Block, factory factory.IMainFactory) bool {
+	var bigI = new(big.Int)
+	jsonWrapper := new(wrappers.JSONWrapper)
+	x12Hash := factory.GetX11Hash()
+
+	blockDataJSON, err := jsonWrapper.Encode(block.Data)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+	dataHash, err := x12Hash.Sum256(blockDataJSON)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	hashI := bigI.SetBytes(dataHash)
+
+	blockMantissa, blockExponent := SeparateTarget(block.Data.Target)
+	blockTarget := GetTarget(blockMantissa, blockExponent)
+
+	if hashI.Cmp(blockTarget) == -1 {
+		return true
+	}
+
+	return false
 }
 
 //CreateBlock create block of transactions
@@ -215,11 +289,11 @@ func SetTarget(difficulty float64) {
 	var trimmedVal []byte
 	defaultTarget := GetTarget(DefaultMantissa, DefaultExponent)
 	newTarget := new(big.Int)
-	if int64(difficulty + 0.5) <= 0 {
+	if int64(difficulty+0.5) <= 0 {
 		return
 	}
 
-	newTarget.Div(defaultTarget, big.NewInt(int64(difficulty + 0.5)))
+	newTarget.Div(defaultTarget, big.NewInt(int64(difficulty+0.5)))
 	fmt.Printf("old target: %x\n", defaultTarget)
 	fmt.Printf("new target: %x\n", newTarget)
 
