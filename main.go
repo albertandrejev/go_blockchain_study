@@ -63,11 +63,12 @@ func main() {
 
 	prevBlockID := "0000000000000000000000000000000000000000000000000000000000000000"
 
-	for i := 0; i < 60; i++ {
+	for i := 0; i < 120; i++ {
 		start := time.Now()
+		fmt.Printf("-------------New block. Height: %d-------------\n", len(blockChain))
 		block := CreateBlock(prevBlockID)
 		currentTarget := GetTarget(currentMantissa, currentExponent)
-		fmt.Printf("block target: %x\n", currentTarget)
+		fmt.Printf("Target: %x\n", currentTarget)
 
 		jsonWrapper := new(wrappers.JSONWrapper)
 		block.Transactions = append(block.Transactions, CreateTransaction(simpleHash, jsonWrapper))
@@ -130,6 +131,7 @@ func main() {
 		fmt.Println(string(blockJSON))*/
 		fmt.Printf("Block ID: %v\n", hashStr)
 		avgDuration = (avgDuration*time.Duration(i) + stop.Sub(start)) / time.Duration(i+1)
+		fmt.Printf("Average Duration: %v\n", avgDuration)
 	}
 	processDuration := time.Now().Sub(processingStart)
 
@@ -150,7 +152,45 @@ func CheckBlock(block *types.Block, factory factory.IMainFactory) bool {
 	return true
 }
 
-func CheckBlockDifficulty(block *types.Block) bool {
+//GetCurrentNetworkDifficulty network difficulty calculation
+func GetCurrentNetworkDifficulty(blockTimestamp int64) *big.Float {
+	totalBlocks := len(blockChain)
+	if totalBlocks > AvgBlocksAmount {
+		startBlockIdx := totalBlocks - AvgBlocksAmount
+		startBlock := blockChain[startBlockIdx]
+		lastBlock := blockChain[totalBlocks-1]
+
+		startTime := time.Unix(startBlock.Data.Timestamp, 0)
+		endTime := time.Unix(blockTimestamp, 0)
+
+		processDuration := endTime.Sub(startTime)
+		prevMantissa, prevExponent := SeparateTarget(lastBlock.Data.Target)
+		prevTarget := GetTarget(prevMantissa, prevExponent)
+		fmt.Printf("prev block target: %x\n", prevTarget)
+		defaultTarget := GetTarget(DefaultMantissa, DefaultExponent)
+
+		lastBlockDifficulty := new(big.Int)
+		lastBlockDifficulty.Div(defaultTarget, prevTarget)
+		fmt.Printf("last difficulty: %v\n", lastBlockDifficulty)
+
+		fmt.Printf("Actual %d blocks duration: %v\n", AvgBlocksAmount, processDuration)
+		difficultyChange := big.NewFloat(AvgBlocksDuration / processDuration.Seconds())
+		difficultyChangeF, accuracyD := difficultyChange.Float64()
+		fmt.Printf("difficulty change: %f, accuracy: %x\n", difficultyChangeF, accuracyD)
+
+		newDifficulty := new(big.Float)
+		lastBlockDifficultyFloat := new(big.Float).SetInt(lastBlockDifficulty)
+		newDifficulty.Mul(lastBlockDifficultyFloat, difficultyChange)
+		newDifficultyF, accuracy := newDifficulty.Float64()
+		fmt.Printf("new difficulty: %f, accuracy: %x\n", newDifficultyF, accuracy)
+		//newDifficulty := big.NewFloat(lastBlockDifficulty.Bytes()) * difficultyChange
+		return newDifficulty
+	}
+
+	return big.NewFloat(DefaultDifficulty)
+}
+
+/*func CheckBlockDifficulty(block *types.Block) bool {
 	totalBlocks := len(blockChain)
 	if totalBlocks > AvgBlocksAmount {
 		startBlockIdx := totalBlocks - AvgBlocksAmount
@@ -174,7 +214,7 @@ func CheckBlockDifficulty(block *types.Block) bool {
 
 		SetTarget(newDifficulty)
 	}
-}
+}*/
 
 //CheckBlockID - current block id
 func CheckBlockID(block *types.Block, factory factory.IMainFactory) bool {
@@ -207,7 +247,7 @@ func CheckBlockID(block *types.Block, factory factory.IMainFactory) bool {
 
 //CreateBlock create block of transactions
 func CreateBlock(prevBlockID string) *types.Block {
-	totalBlocks := len(blockChain)
+	/*totalBlocks := len(blockChain)
 	if totalBlocks > AvgBlocksAmount {
 		startBlockIdx := totalBlocks - AvgBlocksAmount
 		startBlock := blockChain[startBlockIdx]
@@ -232,6 +272,13 @@ func CreateBlock(prevBlockID string) *types.Block {
 		fmt.Printf("new difficulty: %f\n", newDifficulty)
 
 		SetTarget(newDifficulty)
+	}*/
+
+	blockTimestamp := time.Now().Unix()
+
+	newDifficulty := GetCurrentNetworkDifficulty(blockTimestamp)
+	if newDifficulty.Cmp(big.NewFloat(DefaultDifficulty)) != 0 {
+		SetTarget(newDifficulty)
 	}
 
 	target := uint32(currentMantissa<<8 + currentExponent)
@@ -240,7 +287,7 @@ func CreateBlock(prevBlockID string) *types.Block {
 		Data: types.BlockData{
 			PrevBlockID: prevBlockID,
 			Target:      target,
-			Timestamp:   time.Now().Unix(),
+			Timestamp:   blockTimestamp,
 		},
 	}
 }
@@ -284,21 +331,32 @@ func SeparateTarget(target uint32) (int64, int64) {
 }
 
 //SetTarget - set current exponent
-func SetTarget(difficulty float64) {
-	var val []byte
-	var trimmedVal []byte
-	defaultTarget := GetTarget(DefaultMantissa, DefaultExponent)
-	newTarget := new(big.Int)
-	if int64(difficulty+0.5) <= 0 {
+func SetTarget(difficulty *big.Float) {
+	if difficulty.Cmp(big.NewFloat(DefaultDifficulty)) <= 0 {
+		fmt.Println("Set default target")
+		currentMantissa = DefaultMantissa
+		currentExponent = DefaultExponent
 		return
 	}
+	var val []byte
+	//var trimmedVal []byte
+	defaultTargetInt := GetTarget(DefaultMantissa, DefaultExponent)
+	defaultTarget := new(big.Float).SetInt(defaultTargetInt)
 
-	newTarget.Div(defaultTarget, big.NewInt(int64(difficulty+0.5)))
-	fmt.Printf("old target: %x\n", defaultTarget)
-	fmt.Printf("new target: %x\n", newTarget)
+	/*if int64(difficulty+0.5) <= 0 {
+		return
+	}*/
 
-	targetBytes := newTarget.Bytes()
-	first := true
+	newTarget := new(big.Float)
+	newTarget.Quo(defaultTarget, difficulty)
+	newTargetInt := new(big.Int)
+	newTarget.Int(newTargetInt)
+
+	fmt.Printf("old target: %x\n", defaultTargetInt)
+	fmt.Printf("new target: %x\n", newTargetInt)
+
+	targetBytes := newTargetInt.Bytes()
+	/*first := true
 	for idx := 0; idx < len(targetBytes); idx++ {
 		if targetBytes[idx] == 0 && first {
 			continue
@@ -309,9 +367,9 @@ func SetTarget(difficulty float64) {
 
 	}
 
-	fmt.Printf("target bytes: %s\n", hex.EncodeToString(trimmedVal))
+	fmt.Printf("target bytes: %s\n", hex.EncodeToString(trimmedVal))*/
 	for idx := 0; (idx < 3) && (idx < (len(targetBytes) - 1)); idx++ {
-		val = append(val, trimmedVal[idx])
+		val = append(val, targetBytes[idx])
 	}
 
 	tmpMantissa, err := strconv.ParseInt(hex.EncodeToString(val), 16, 64)
@@ -320,15 +378,17 @@ func SetTarget(difficulty float64) {
 	} else {
 		fmt.Println(err)
 	}
+	//currentMantissa = newTarget.MantExp
 	fmt.Printf("current mantissa: %x\n", currentMantissa)
 
-	currentExponent = (int64(len(trimmedVal) - len(val))) * 2
+	currentExponent = (int64(len(targetBytes) - len(val))) * 2
 
 	currentTarget := GetTarget(currentMantissa, currentExponent)
 	fmt.Printf("new current target: %x\n", currentTarget)
 
-	currentNormalDifficulty := defaultTarget.Div(defaultTarget, currentTarget)
-	fmt.Printf("actual current difficulty: %x\n", currentNormalDifficulty.Int64())
+	currentNormalDifficulty := new(big.Int)
+	currentNormalDifficulty.Div(defaultTargetInt, currentTarget)
+	fmt.Printf("actual current difficulty: %d\n", currentNormalDifficulty.Int64())
 }
 
 /*
