@@ -144,6 +144,7 @@ func CheckBlock(block *types.Block, factory factory.IMainFactory) bool {
 	//1. check block id hash
 	//1.2. check hash difficulty
 	//2. check transactions
+
 	//1. check block id hash
 	if CheckBlockID(block, factory) == false {
 		return false
