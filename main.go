@@ -25,11 +25,6 @@ const DefaultExponent = 56
 var currentMantissa int64 = DefaultMantissa
 var currentExponent int64 = DefaultExponent
 
-//0ffff00000000000000000000000000000000000000000000000000000000000
-//00000000000000000066bf764f9bad8d7c5658a23afd6b8625a8558879c7f9b6
-//9afe25c40b182150824ceae419b1e8e688edc9c16fbca60b50221b0002683bb3
-//61626364a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b
-
 //DefaultDifficulty Starting calculation difficulty
 const DefaultDifficulty float64 = 1
 
